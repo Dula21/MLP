@@ -1,0 +1,142 @@
+import numpy as np
+import csv
+import matplotlib.pyplot as plt
+
+# Load the dataset
+def load_dataset(filename):
+    """Reads dataset from a CSV file and returns feature and label arrays."""
+    features = []  # Stores the feature vectors (input data)
+    labels = []    # Stores the one-hot encoded labels (output classes)
+    with open(filename, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            features.append([float(value) for value in row[:-1]])  # Extract features
+            label = int(row[-1])  # Extract the label (last column)
+            one_hot_label = [0] * 10  # Initialize one-hot vector for 10 classes
+            one_hot_label[label] = 1
+            labels.append(one_hot_label)
+    return np.array(features), np.array(labels)
+
+# Sigmoid activation function
+def sigmoid(x):
+    """Applies the sigmoid activation function."""
+    return 1 / (1 + np.exp(-x))
+
+# Derivative of sigmoid
+def sigmoid_derivative(x):
+    """Calculates the derivative of the sigmoid function."""
+    return x * (1 - x)
+
+# Feedforward function
+def feedforward(inputs, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output):
+    """Performs forward propagation through the neural network."""
+    hidden_inputs = np.dot(inputs, weights_input_hidden) + biases_hidden  # Weighted sum for hidden layer
+    hidden_outputs = sigmoid(hidden_inputs)  # Apply sigmoid activation
+    output_inputs = np.dot(hidden_outputs, weights_hidden_output) + biases_output  # Weighted sum for output layer
+    outputs = sigmoid(output_inputs)  # Apply sigmoid activation
+    return hidden_outputs, outputs
+
+# Backpropagation function
+def backpropagation(inputs, targets, hidden_outputs, outputs, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output, learning_rate):
+    """Performs backpropagation to adjust weights and biases."""
+    # Calculate output layer error and delta
+    output_errors = targets - outputs  # Error in output layer
+    output_deltas = output_errors * sigmoid_derivative(outputs)  # Delta for output layer
+
+    # Calculate hidden layer error and delta
+    hidden_errors = np.dot(output_deltas, weights_hidden_output.T)  # Backpropagate error
+    hidden_deltas = hidden_errors * sigmoid_derivative(hidden_outputs)  # Delta for hidden layer
+
+    # Update weights and biases for output layer
+    weights_hidden_output += np.dot(hidden_outputs.T, output_deltas) * learning_rate
+    biases_output += np.sum(output_deltas, axis=0, keepdims=True) * learning_rate
+
+    # Update weights and biases for hidden layer
+    weights_input_hidden += np.dot(inputs.T, hidden_deltas) * learning_rate
+    biases_hidden += np.sum(hidden_deltas, axis=0, keepdims=True) * learning_rate
+
+    return weights_input_hidden, biases_hidden, weights_hidden_output, biases_output
+
+# Training function
+def train(features, labels, input_layer_size, hidden_layer_size, output_layer_size, learning_rate, num_epochs, test_features, test_labels):
+    """Trains the neural network using backpropagation and calculates accuracy for each epoch."""
+    # Initialize weights and biases randomly
+    weights_input_hidden = np.random.uniform(-0.5, 0.5, size=(input_layer_size, hidden_layer_size))
+    biases_hidden = np.random.uniform(-0.5, 0.5, size=(1, hidden_layer_size))
+    weights_hidden_output = np.random.uniform(-0.5, 0.5, size=(hidden_layer_size, output_layer_size))
+    biases_output = np.random.uniform(-0.5, 0.5, size=(1, output_layer_size))
+
+    for epoch in range(num_epochs):
+        # Perform feedforward
+        hidden_outputs, outputs = feedforward(features, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output)
+
+        # Perform backpropagation
+        weights_input_hidden, biases_hidden, weights_hidden_output, biases_output = backpropagation(
+            features, labels, hidden_outputs, outputs,
+            weights_input_hidden, biases_hidden, weights_hidden_output, biases_output, learning_rate)
+
+        # Calculate training accuracy
+        training_predictions = np.argmax(outputs, axis=1)
+        training_true_labels = np.argmax(labels, axis=1)
+        training_accuracy = np.mean(training_predictions == training_true_labels) * 100
+
+        # Calculate testing accuracy
+        _, test_outputs = feedforward(test_features, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output)
+        test_predictions = np.argmax(test_outputs, axis=1)
+        test_true_labels = np.argmax(test_labels, axis=1)
+        testing_accuracy = np.mean(test_predictions == test_true_labels) * 100
+
+        # Print accuracy for each epoch
+        print(f"Epoch {epoch + 1}/{num_epochs}: Training Accuracy = {training_accuracy:.2f}%, Testing Accuracy = {testing_accuracy:.2f}%")
+
+    # Return the trained weights and biases
+    return weights_input_hidden, biases_hidden, weights_hidden_output, biases_output
+
+# Testing function
+def test(features, labels, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output):
+    """Tests the neural network on the test dataset."""
+    _, outputs = feedforward(features, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output)
+    predictions = np.argmax(outputs, axis=1)  # Predicted classes
+    true_labels = np.argmax(labels, axis=1)  # True classes
+
+    # Calculate testing accuracy
+    accuracy = np.mean(predictions == true_labels) * 100
+    print(f"Final Accuracy: {accuracy:.2f}%")
+
+    # Generate confusion matrix
+    confusion_matrix = np.zeros((10, 10), dtype=int)
+    for true_label, predicted_label in zip(true_labels, predictions):
+        confusion_matrix[true_label, predicted_label] += 1
+
+    print("Confusion Matrix:")
+    print(confusion_matrix)
+    return accuracy
+
+# Main program
+if __name__ == "__main__":
+    # Load training and testing datasets
+    training_features, training_labels = load_dataset("cw2DataSet1.csv")
+    testing_features, testing_labels = load_dataset("cw2DataSet2.csv")
+
+    # Set initial hyperparameters
+    input_layer_size = 64
+    hidden_layer_size = 140
+    output_layer_size = 10
+    learning_rate = 0.0001
+    num_epochs = 2000
+
+    # Train the neural network
+    weights_input_hidden, biases_hidden, weights_hidden_output, biases_output = train(
+        training_features, training_labels, input_layer_size, hidden_layer_size,
+        output_layer_size, learning_rate, num_epochs, testing_features, testing_labels)
+
+    # Test the neural network
+    print("\nFinal Testing on Test Dataset:")
+    testing_accuracy = test(testing_features, testing_labels, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output)
+
+    print("\nFinal Training on Training Dataset:")
+    training_accuracy = test(training_features, training_labels, weights_input_hidden, biases_hidden, weights_hidden_output, biases_output)
+
+    # Print the final overall accuracy
+    final_accuracy = (training_accuracy + testing_accuracy) / 2
+    print(f"\nFinal Overall Accuracy: {final_accuracy:.2f}%")
